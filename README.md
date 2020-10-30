@@ -20,4 +20,5 @@ All-pair:TreeWand, LocalPush[2]
 [2] Y. Wang, L. Chen, Y. Che, and Q. Luo. Accelerating pairwise simrank estimation over static and dynamic graphs. PVLDB, 28(1):99–122, 2019. 
 Y. Wang, X. Lian, and L. Chen. Efficient simrank tracking in dynamic graphs. In ICDE, pages 545–556, 2018.
 https://github.com/RapidsAtHKUST/SimRank
+All pair, static graph, non-parallel (https://github.com/RapidsAtHKUST/SimRank/blob/master/LPMC-Profile/yche_refactor/local_push_yche.cpp)
 
