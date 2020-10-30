@@ -1,0 +1,222 @@
+__author__ = 'Mao'
+import csv
+#import scipy.stats as sp
+import math
+import sys
+def Calculate_exact(filename):
+    k=20  #for each query, how many results are evaluated
+    numQ=100  #evaluating how many queries
+    mean_time = 0
+    tau = 0
+    L1 = 0
+    precision =0
+    nodes_count = 0
+    RAG = 0
+    exact_ranking_lists = []
+    exact_score_lists = []
+   
+   # with open("/Users/zhufanwei/Dropbox/Fast-Simrank/SIGMOD-expt/LJ/fastsim-indeg_DEP5_STP1.0E-4_H60000_E0", 'r') as csvfile:
+    with open(sys.argv[1], 'r') as csvfile:
+        exactSim = csv.reader(csvfile, delimiter='\t')
+        ranking = []
+        score = dict()
+        # exact_query = open("exact_query"+query_count, 'w')
+        #query_num = 0
+        for row in exactSim:
+           # if query_num == numQ:
+            #    break
+            if len(row)==0:
+                continue
+            if "ms" in row[0]:
+                if (len(ranking)>0):
+                    exact_ranking_lists.append(ranking)
+                    exact_score_lists.append(score)
+                ranking = []
+                score = dict()
+               # query_num += 1
+                node_num = int(row[0].split("ms ")[1])
+                score[node_num] = float(row[1])
+                ranking.append(node_num)
+                continue
+            node_num = int(row[0])
+            if (len(ranking) < k):
+                ranking.append(node_num)
+            score[node_num] = float(row[1])
+        exact_ranking_lists.append(ranking)
+        exact_score_lists.append(score)
+    ranking_lists = []
+    score_lists = []
+    with open(filename, 'r') as csvfile:
+        fastsim = csv.reader(csvfile, delimiter='\t')
+        #fastsim = csv.reader(csvfile, delimiter=' ')
+       # print filename
+        ranking = []
+        score = dict()
+        sum_time = 0
+        # exact_query = open("exact_query"+query_count, 'w')
+       # query_num_est = 0
+        for row in fastsim:
+           # if query_num_est == numQ:
+            #    break
+            if "ms" in row[0]:
+                #sum_time += int(row[0].split("ms")[0])
+                sum_time += float(row[0].split("ms")[0])
+                if (len(ranking)>0):
+                    ranking_lists.append(ranking)
+                    score_lists.append(score)
+                ranking = []
+                score = dict()
+               # query_num_est += 1
+                node_num = int(row[0].split("ms ")[1])
+                score[node_num] = float(row[1])
+                ranking.append(node_num)
+                continue
+            node_num = int(row[0])
+            if(len(ranking)<k):
+                ranking.append(node_num)
+            node_score = float(row[1])
+            score[node_num] = float(node_score)
+        ranking_lists.append(ranking)
+        score_lists.append(score)
+    num_queries = 0
+    #print "#queries", len(ranking_lists)
+    
+    #for query_num in range(len(ranking_lists)):
+    for query_num in range(numQ):  # only for facebook.noAttr evaluation, evaluate 100 queries for a 1000 result list.
+        current_ranking = ranking_lists[query_num]
+        est_score_dict = score_lists[query_num]
+        exact_ranking = exact_ranking_lists[query_num]
+        exact_score_dict = exact_score_lists[query_num]
+        hits = 0
+        RAG_divisor = 0
+        RAG_dividend = 0
+        if len(current_ranking) < len(exact_ranking):
+            continue
+        for node in exact_ranking:
+            est_score = 0
+            if node in est_score_dict:
+                est_score = est_score_dict[node]
+                hits = hits + 1
+            L1 += abs(exact_score_dict[node]-est_score)
+            RAG_divisor += exact_score_dict[node]
+        #print "hits",hits
+        #print "len(exact_ranking)", len(exact_ranking)
+        #print "hits/Len", float(hits)/float(len(exact_ranking))
+        precision += float(hits)/float(len(exact_ranking))
+ 
+        
+        for node in current_ranking:
+            if node in exact_score_dict:
+                RAG_dividend += exact_score_dict[node]
+        RAG += (RAG_dividend)/(RAG_divisor)
+        allNodes = set(current_ranking) | set(exact_ranking)
+        node1Set = set(current_ranking)
+        node2Set = set(exact_ranking)
+        c = 0
+        d = 0
+        e = 0
+        a = 0
+        for v in allNodes:
+            for w in allNodes:
+                if v >= w:
+                    continue
+                eV = 0
+                if v in node2Set:
+                    eV = exact_score_dict[v]
+                eW = 0
+                if w in node2Set:
+                    eW = exact_score_dict[w]
+                aV = 0
+                if v in node1Set:
+                    aV = est_score_dict[v]
+                aW = 0
+                if w in node1Set:
+                    aW = est_score_dict[w]
+                if eV == eW:
+                    e += 1
+                if aV == aW:
+                    a += 1
+                if (eV - eW) * (aV - aW) > 0:
+                    c += 1
+                elif (eV - eW) * (aV - aW) < 0:
+                    d += 1
+        m = len(allNodes) * (len(allNodes) - 1) / 2.0
+        tau += (c - d) / math.sqrt((m - e) * (m - a))
+        #tau = 0
+        
+        num_queries += 1
+
+    print(str(tau/num_queries)+"\t"+str(precision/num_queries)+"\t"+str(RAG/num_queries)+"\t"+str(L1/num_queries)+"\t"+str(sum_time/len(ranking_lists)))
+    # print str(sum_time/len(ranking_lists))
+
+print "tau\t\t preci \t RAG \t\t L1\t\t time"
+
+Calculate_exact(sys.argv[2])
+
+#print "FastSim pre"
+
+
+#print "1000H"
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H1000_E0")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H1000_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H1000_E2")
+
+
+
+
+#print "2000"
+
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H2000_E0")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H2000_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H2000_E2")
+
+
+
+#print "3000"
+
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H3000_E0")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H3000_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/fastsimSS-Preindeg_DEP5_STP1.0E-4_H3000_E2")
+
+
+
+
+
+
+#print "baseline"
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H1200_k50_C0.75")
+
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/D5_H700_k20_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/D5_H1000_k20_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/D5_H1500_k20_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/D5_H1500_k20_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook.noAttr/SSresults.noAttr/D5_H300_k20_C0.75")
+
+#Calculate_exact(r"")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H1500_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H1600_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H1800_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H2000_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H2200_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H2400_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H2500_k50_C0.75")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/facebook/resultSS/D5_H2600_k50_C0.75")
+
+
+#FastSim
+#print "FastSim topK"
+#print "300"
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/wiki/SSresults_top/fastsimTop100_H300_DEP5_DLT1e-04_E0")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/wiki/SSresults_top/fastsimTop100_H300_DEP5_DLT1e-04_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/wiki/SSresults_top/fastsimTop100_H300_DEP5_DLT1e-04_E2")
+#print "400"
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/wiki/SSresults_top/fastsimTop100_H400_DEP5_DLT1e-04_E0")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/wiki/SSresults_top/fastsimTop100_H400_DEP5_DLT1e-04_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/wiki/SSresults_top/fastsimTop100_H400_DEP5_DLT1e-04_E2")
+
+#print "DBLP-nonPreTop100"
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/dblp/fastsimSS-Top100_indeg_DEP5_STP1.0E-4_H3000_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/dblp/fastsimSS-Top100_indeg_DEP5_STP1.0E-4_H4000_E1")
+#Calculate_exact(r"/Users/zhufanwei/Dropbox/Fast-Simrank/topK/dblp/fastsimSS-Top100_indeg_DEP5_STP1.0E-4_H5000_E1")
+
+
